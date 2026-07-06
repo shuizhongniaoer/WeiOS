@@ -71,6 +71,27 @@ type GeneratedAiOutput = {
   createdAt: string;
 };
 
+type TaskSourceType = "manual" | "memory" | "ai_output" | "import";
+type TaskProjectFilter = "All" | string;
+type TaskPriorityFilter = "All" | Task["priority"];
+
+type TaskRecord = Task & {
+  sourceType: TaskSourceType;
+  sourceId?: string;
+  aiAssistable: boolean;
+  requiresApproval: boolean;
+};
+
+type TaskFormDraft = {
+  title: string;
+  description: string;
+  projectId: string;
+  priority: Task["priority"];
+  sourceType: TaskSourceType;
+  aiAssistable: boolean;
+  requiresApproval: boolean;
+};
+
 type MemoryKind = "Decision" | "Fact" | "Risk" | "Lesson" | "Idea";
 type MemoryTypeFilter = "All" | MemoryKind;
 
@@ -108,6 +129,14 @@ type ProjectHubRecord = ProjectSummary & ProjectHubDetails;
 
 const memoryTypes: MemoryKind[] = ["Decision", "Fact", "Risk", "Lesson", "Idea"];
 const memoryTypeFilters: MemoryTypeFilter[] = ["All", ...memoryTypes];
+const taskStatuses: Task["status"][] = ["todo", "doing", "blocked", "done"];
+const taskPriorityFilters: TaskPriorityFilter[] = [
+  "All",
+  "critical",
+  "high",
+  "medium",
+  "low",
+];
 const aiActionDefinitions: AiActionDefinition[] = [
   {
     kind: "summarize_project",
@@ -131,7 +160,7 @@ const aiActionDefinitions: AiActionDefinition[] = [
   },
 ];
 
-const tasks: Task[] = [
+const tasks: TaskRecord[] = [
   {
     id: "task_1",
     title: "完成 WeiOS monorepo 初始化",
@@ -142,6 +171,9 @@ const tasks: Task[] = [
     source: "planning-doc",
     owner: "Wei",
     createdBy: "user",
+    sourceType: "manual",
+    aiAssistable: true,
+    requiresApproval: false,
     createdAt: "2026-06-30T00:00:00.000Z",
     updatedAt: "2026-06-30T00:00:00.000Z",
   },
@@ -155,6 +187,10 @@ const tasks: Task[] = [
     source: "manual-import",
     owner: "Wei",
     createdBy: "ai",
+    sourceType: "import",
+    sourceId: "memory_planfit_builder_risk",
+    aiAssistable: true,
+    requiresApproval: false,
     createdAt: "2026-06-30T00:00:00.000Z",
     updatedAt: "2026-06-30T00:00:00.000Z",
   },
@@ -168,6 +204,9 @@ const tasks: Task[] = [
     source: "roadmap",
     owner: "Wei",
     createdBy: "user",
+    sourceType: "manual",
+    aiAssistable: true,
+    requiresApproval: false,
     createdAt: "2026-06-30T00:00:00.000Z",
     updatedAt: "2026-06-30T00:00:00.000Z",
   },
@@ -181,6 +220,10 @@ const tasks: Task[] = [
     source: "mvp-followup",
     owner: "Wei",
     createdBy: "ai",
+    sourceType: "ai_output",
+    sourceId: "ai_weios_daily_focus",
+    aiAssistable: true,
+    requiresApproval: true,
     createdAt: "2026-07-06T00:00:00.000Z",
     updatedAt: "2026-07-06T00:00:00.000Z",
   },
@@ -823,7 +866,7 @@ const navItems: ActiveView[] = [
 export default function WeiOsPage() {
   const [activeView, setActiveView] = useState<ActiveView>("Dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState("project_weios");
-  const [taskRecords, setTaskRecords] = useState<Task[]>(tasks);
+  const [taskRecords, setTaskRecords] = useState<TaskRecord[]>(tasks);
   const [memoryRecords, setMemoryRecords] =
     useState<MemoryRecord[]>(mockMemories);
   const [selectedMemoryId, setSelectedMemoryId] = useState(mockMemories[0]!.id);
@@ -842,19 +885,24 @@ export default function WeiOsPage() {
 
   const projectHubRecords = useMemo(
     () =>
-      projects.map((project) => ({
-        ...project,
-        ...projectHubDetails[project.id],
-        nextActions: [
-          ...projectHubDetails[project.id].nextActions,
-          ...taskRecords.filter(
-            (task) => task.projectId === project.id && task.source === "ai-action",
+      projects.map((project) => {
+        const details = projectHubDetails[project.id];
+        const baseActionIds = new Set(details.nextActions.map((task) => task.id));
+
+        return {
+          ...project,
+          ...details,
+          nextActions: [
+            ...details.nextActions,
+            ...taskRecords.filter(
+              (task) => task.projectId === project.id && !baseActionIds.has(task.id),
+            ),
+          ],
+          relatedMemories: memoryRecords.filter(
+            (memory) => memory.projectId === project.id,
           ),
-        ],
-        relatedMemories: memoryRecords.filter(
-          (memory) => memory.projectId === project.id,
-        ),
-      })),
+        };
+      }),
     [memoryRecords, taskRecords],
   );
 
@@ -968,12 +1016,57 @@ export default function WeiOsPage() {
         source: "ai-action",
         owner: "Wei",
         createdBy: "ai",
+        sourceType: "ai_output",
+        sourceId: output.id,
+        aiAssistable: true,
+        requiresApproval: output.action === "create_codex_prompt",
         createdAt: now,
         updatedAt: now,
       },
       ...current,
     ]);
     setAiOutput(null);
+  }
+
+  function createManualTask(draft: TaskFormDraft) {
+    const now = new Date().toISOString();
+
+    setTaskRecords((current) => [
+      {
+        id: `task_manual_${Date.now()}`,
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        projectId: draft.projectId,
+        priority: draft.priority,
+        status: "todo",
+        source: draft.sourceType,
+        owner: "Wei",
+        createdBy: "user",
+        sourceType: draft.sourceType,
+        aiAssistable: draft.aiAssistable,
+        requiresApproval: draft.requiresApproval,
+        createdAt: now,
+        updatedAt: now,
+      },
+      ...current,
+    ]);
+    setSelectedProjectId(draft.projectId);
+  }
+
+  function updateTaskStatus(taskId: string, status: Task["status"]) {
+    const now = new Date().toISOString();
+
+    setTaskRecords((current) =>
+      current.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status,
+              updatedAt: now,
+            }
+          : task,
+      ),
+    );
   }
 
   function discardAiOutput(outputId: string) {
@@ -1064,7 +1157,14 @@ export default function WeiOsPage() {
             createMemory={createMemory}
           />
         )}
-        {activeView === "Tasks" && <TasksView tasks={taskRecords} />}
+        {activeView === "Tasks" && (
+          <TasksView
+            createManualTask={createManualTask}
+            selectedProjectId={selectedProjectId}
+            tasks={taskRecords}
+            updateTaskStatus={updateTaskStatus}
+          />
+        )}
         {activeView === "AI Team" && <AgentsView />}
         {activeView === "Permissions" && <PermissionsView />}
         {activeView === "Settings" && <SettingsView />}
@@ -1848,17 +1948,357 @@ function ManualMemoryForm({
   );
 }
 
-function TasksView({ tasks: rows }: { tasks: Task[] }) {
+function TasksView({
+  createManualTask,
+  selectedProjectId,
+  tasks: rows,
+  updateTaskStatus,
+}: {
+  createManualTask: (draft: TaskFormDraft) => void;
+  selectedProjectId: string;
+  tasks: TaskRecord[];
+  updateTaskStatus: (taskId: string, status: Task["status"]) => void;
+}) {
+  const [projectFilter, setProjectFilter] = useState<TaskProjectFilter>("All");
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>("All");
+
+  const filteredTasks = useMemo(
+    () => filterTasks(rows, projectFilter, priorityFilter),
+    [priorityFilter, projectFilter, rows],
+  );
+
   return (
-    <section className="contentGrid">
+    <section className="taskEngineGrid">
       <section className="panel spanFull">
         <div className="panelHeader">
-          <h2>任务引擎</h2>
-          <span>{rows.length} tasks</span>
+          <h2>Task Engine</h2>
+          <span>
+            {filteredTasks.length} / {rows.length} tasks
+          </span>
         </div>
-        <TaskList tasks={rows} />
+        <TaskFilters
+          priorityFilter={priorityFilter}
+          projectFilter={projectFilter}
+          setPriorityFilter={setPriorityFilter}
+          setProjectFilter={setProjectFilter}
+        />
+      </section>
+
+      <section className="panel taskCreatePanel">
+        <ManualTaskForm
+          createManualTask={createManualTask}
+          selectedProjectId={selectedProjectId}
+        />
+      </section>
+
+      <section className="panel taskBoardPanel">
+        <div className="taskBoard">
+          {taskStatuses.map((status) => (
+            <TaskColumn
+              key={status}
+              status={status}
+              tasks={filteredTasks.filter((task) => task.status === status)}
+              updateTaskStatus={updateTaskStatus}
+            />
+          ))}
+        </div>
       </section>
     </section>
+  );
+}
+
+function TaskFilters({
+  priorityFilter,
+  projectFilter,
+  setPriorityFilter,
+  setProjectFilter,
+}: {
+  priorityFilter: TaskPriorityFilter;
+  projectFilter: TaskProjectFilter;
+  setPriorityFilter: (filter: TaskPriorityFilter) => void;
+  setProjectFilter: (filter: TaskProjectFilter) => void;
+}) {
+  return (
+    <div className="taskFilters">
+      <label className="field">
+        <span>Project</span>
+        <select
+          className="select"
+          onChange={(event) => setProjectFilter(event.target.value)}
+          value={projectFilter}
+        >
+          <option value="All">All projects</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>Priority</span>
+        <select
+          className="select"
+          onChange={(event) =>
+            setPriorityFilter(event.target.value as TaskPriorityFilter)
+          }
+          value={priorityFilter}
+        >
+          {taskPriorityFilters.map((priority) => (
+            <option key={priority} value={priority}>
+              {priority === "All" ? "All priorities" : priority}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function ManualTaskForm({
+  createManualTask,
+  selectedProjectId,
+}: {
+  createManualTask: (draft: TaskFormDraft) => void;
+  selectedProjectId: string;
+}) {
+  const [draft, setDraft] = useState<TaskFormDraft>({
+    title: "",
+    description: "",
+    projectId: selectedProjectId,
+    priority: "medium",
+    sourceType: "manual",
+    aiAssistable: true,
+    requiresApproval: false,
+  });
+
+  useEffect(() => {
+    setDraft((current) => ({ ...current, projectId: selectedProjectId }));
+  }, [selectedProjectId]);
+
+  const canCreate = draft.title.trim().length > 0 && draft.description.trim().length > 0;
+
+  function updateDraft<Key extends keyof TaskFormDraft>(
+    key: Key,
+    value: TaskFormDraft[Key],
+  ) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function submitTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canCreate) {
+      return;
+    }
+
+    createManualTask(draft);
+    setDraft((current) => ({
+      ...current,
+      title: "",
+      description: "",
+    }));
+  }
+
+  return (
+    <form className="manualTaskForm" onSubmit={submitTask}>
+      <div className="panelHeader">
+        <h2>Create Task</h2>
+        <span>Manual</span>
+      </div>
+      <div className="formGrid">
+        <label className="field spanFull">
+          <span>Title</span>
+          <input
+            className="input"
+            onChange={(event) => updateDraft("title", event.target.value)}
+            value={draft.title}
+          />
+        </label>
+        <label className="field spanFull">
+          <span>Description</span>
+          <textarea
+            onChange={(event) => updateDraft("description", event.target.value)}
+            value={draft.description}
+          />
+        </label>
+        <label className="field">
+          <span>Project</span>
+          <select
+            className="select"
+            onChange={(event) => updateDraft("projectId", event.target.value)}
+            value={draft.projectId}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Priority</span>
+          <select
+            className="select"
+            onChange={(event) =>
+              updateDraft("priority", event.target.value as Task["priority"])
+            }
+            value={draft.priority}
+          >
+            {taskPriorityFilters
+              .filter((priority): priority is Task["priority"] => priority !== "All")
+              .map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Source</span>
+          <select
+            className="select"
+            onChange={(event) =>
+              updateDraft("sourceType", event.target.value as TaskSourceType)
+            }
+            value={draft.sourceType}
+          >
+            <option value="manual">manual</option>
+            <option value="memory">memory</option>
+            <option value="ai_output">ai output</option>
+            <option value="import">import</option>
+          </select>
+        </label>
+        <div className="toggleGroup">
+          <label className="toggleRow">
+            <input
+              checked={draft.aiAssistable}
+              onChange={(event) =>
+                updateDraft("aiAssistable", event.target.checked)
+              }
+              type="checkbox"
+            />
+            <span>AI assistable</span>
+          </label>
+          <label className="toggleRow">
+            <input
+              checked={draft.requiresApproval}
+              onChange={(event) =>
+                updateDraft("requiresApproval", event.target.checked)
+              }
+              type="checkbox"
+            />
+            <span>Approval required</span>
+          </label>
+        </div>
+      </div>
+      <button className="primaryButton" disabled={!canCreate} type="submit">
+        Create task
+      </button>
+    </form>
+  );
+}
+
+function TaskColumn({
+  status,
+  tasks: rows,
+  updateTaskStatus,
+}: {
+  status: Task["status"];
+  tasks: TaskRecord[];
+  updateTaskStatus: (taskId: string, status: Task["status"]) => void;
+}) {
+  return (
+    <section className="taskColumn">
+      <div className="taskColumnHeader">
+        <h3>{status}</h3>
+        <span>{rows.length}</span>
+      </div>
+      {rows.length > 0 ? (
+        <div className="taskColumnList">
+          {rows.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              updateTaskStatus={updateTaskStatus}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyList text={`No ${status} tasks.`} />
+      )}
+    </section>
+  );
+}
+
+function TaskCard({
+  task,
+  updateTaskStatus,
+}: {
+  task: TaskRecord;
+  updateTaskStatus: (taskId: string, status: Task["status"]) => void;
+}) {
+  return (
+    <article className="taskCard">
+      <div className="taskCardHeader">
+        <span className={`priority ${task.priority}`}>{task.priority}</span>
+        <span className={`taskStatus ${task.status}`}>{task.status}</span>
+      </div>
+      <div>
+        <h3>{task.title}</h3>
+        <p>{task.description}</p>
+      </div>
+      <div className="taskMetaGrid">
+        <TaskMeta label="Project" value={projectNameFor(task.projectId)} />
+        <TaskMeta label="Source" value={task.sourceType} />
+      </div>
+      <div className="chipList">
+        <span className="chip">
+          {task.aiAssistable ? "AI assistable" : "manual only"}
+        </span>
+        <span className="chip">
+          {task.requiresApproval ? "approval required" : "no approval"}
+        </span>
+      </div>
+      <div className="taskCardActions">
+        {task.status !== "doing" ? (
+          <button
+            className="ghostButton"
+            onClick={() => updateTaskStatus(task.id, "doing")}
+            type="button"
+          >
+            Start
+          </button>
+        ) : null}
+        {task.status !== "blocked" ? (
+          <button
+            className="ghostButton"
+            onClick={() => updateTaskStatus(task.id, "blocked")}
+            type="button"
+          >
+            Block
+          </button>
+        ) : null}
+        {task.status !== "done" ? (
+          <button
+            className="secondaryButton"
+            onClick={() => updateTaskStatus(task.id, "done")}
+            type="button"
+          >
+            Done
+          </button>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function TaskMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="taskMeta">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -2176,6 +2616,21 @@ function filterMemoriesByType(
   return memories.filter((memory) => memory.type === filter);
 }
 
+function filterTasks(
+  tasks: TaskRecord[],
+  projectFilter: TaskProjectFilter,
+  priorityFilter: TaskPriorityFilter,
+): TaskRecord[] {
+  return tasks.filter((task) => {
+    const matchesProject =
+      projectFilter === "All" || task.projectId === projectFilter;
+    const matchesPriority =
+      priorityFilter === "All" || task.priority === priorityFilter;
+
+    return matchesProject && matchesPriority;
+  });
+}
+
 function createMockAiOutput(
   action: AiActionKind,
   project: ProjectHubRecord,
@@ -2267,7 +2722,11 @@ function createMockAiOutput(
   }
 }
 
-function projectNameFor(projectId: string): string {
+function projectNameFor(projectId?: string): string {
+  if (!projectId) {
+    return "No project";
+  }
+
   return projects.find((project) => project.id === projectId)?.name ?? "No project";
 }
 

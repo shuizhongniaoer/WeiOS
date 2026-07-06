@@ -14,6 +14,7 @@ type ActiveView =
   | "Dashboard"
   | "Projects"
   | "Memories"
+  | "Imports"
   | "Tasks"
   | "AI Team"
   | "Permissions"
@@ -142,6 +143,45 @@ type MemoryFormDraft = {
   source: string;
 };
 
+type CommunicationSource =
+  | "WeChat"
+  | "DingTalk"
+  | "Email"
+  | "Slack"
+  | "Meeting"
+  | "Manual Note";
+
+type CommunicationImportStatus = "new" | "reviewed" | "saved";
+
+type CommunicationExtractedTask = {
+  id: string;
+  title: string;
+  description: string;
+  priority: Task["priority"];
+};
+
+type CommunicationImportRecord = {
+  id: string;
+  title: string;
+  source: CommunicationSource;
+  projectId: string;
+  participants: string[];
+  rawText: string;
+  status: CommunicationImportStatus;
+  receivedAt: string;
+  extractedMemories: MemoryRecord[];
+  extractedTasks: CommunicationExtractedTask[];
+  extractedRisks: ProjectProblem[];
+};
+
+type CommunicationImportDraft = {
+  title: string;
+  source: CommunicationSource;
+  projectId: string;
+  participants: string;
+  rawText: string;
+};
+
 type ProjectHubDetails = {
   overview: string;
   currentProblems: ProjectProblem[];
@@ -156,6 +196,14 @@ type ProjectHubRecord = ProjectSummary & ProjectHubDetails;
 
 const memoryTypes: MemoryKind[] = ["Decision", "Fact", "Risk", "Lesson", "Idea"];
 const memoryTypeFilters: MemoryTypeFilter[] = ["All", ...memoryTypes];
+const communicationSources: CommunicationSource[] = [
+  "WeChat",
+  "DingTalk",
+  "Email",
+  "Slack",
+  "Meeting",
+  "Manual Note",
+];
 const taskStatuses: Task["status"][] = ["todo", "doing", "blocked", "done"];
 const taskPriorityFilters: TaskPriorityFilter[] = [
   "All",
@@ -522,6 +570,153 @@ const mockMemories: MemoryRecord[] = [
     tags: ["finance", "risk", "blocked-action"],
     source: "permission-policy",
     createdAt: "2026-06-30T00:00:00.000Z",
+  },
+];
+
+const mockCommunicationImports: CommunicationImportRecord[] = [
+  {
+    id: "import_planfit_wechat_builder",
+    title: "Planfit Builder API timeline chat",
+    source: "WeChat",
+    projectId: "project_planfit",
+    participants: ["Wei", "Chris"],
+    rawText:
+      "Chris: Builder API 可能延期到 7 月底。Wei: 需要确认新的时间表，如果延期就先准备 fallback launch plan。",
+    status: "reviewed",
+    receivedAt: "2026-07-06T09:30:00.000Z",
+    extractedMemories: [
+      {
+        id: "memory_import_planfit_builder_risk",
+        type: "Risk",
+        title: "Builder API delivery may move to late July",
+        content:
+          "Planfit launch has a dependency risk if Builder API delivery slips to late July.",
+        projectId: "project_planfit",
+        tags: ["communication-import", "builder-api", "risk"],
+        source: "WeChat import",
+        createdAt: "2026-07-06T09:30:00.000Z",
+      },
+      {
+        id: "memory_import_planfit_fallback",
+        type: "Idea",
+        title: "Prepare fallback launch plan",
+        content:
+          "If Builder API slips, WeiOS should track a fallback launch plan that does not depend on the full API.",
+        projectId: "project_planfit",
+        tags: ["communication-import", "fallback", "launch"],
+        source: "WeChat import",
+        createdAt: "2026-07-06T09:30:00.000Z",
+      },
+    ],
+    extractedTasks: [
+      {
+        id: "import_task_planfit_confirm_timeline",
+        title: "Confirm Builder API timeline with Chris",
+        description:
+          "Ask Chris for the new Builder API delivery date and launch impact.",
+        priority: "high",
+      },
+      {
+        id: "import_task_planfit_fallback_plan",
+        title: "Draft Planfit fallback launch path",
+        description:
+          "Prepare a launch option that avoids blocking on the full Builder API.",
+        priority: "high",
+      },
+    ],
+    extractedRisks: [
+      {
+        id: "import_risk_planfit_api_delay",
+        title: "Builder API dependency may delay launch",
+        description:
+          "Timeline uncertainty should stay visible until Chris confirms delivery.",
+        severity: "high",
+      },
+    ],
+  },
+  {
+    id: "import_itms_meeting_intake",
+    title: "iTMS initial intake notes",
+    source: "Meeting",
+    projectId: "project_itms",
+    participants: ["Wei", "Product"],
+    rawText:
+      "会议记录：iTMS 还没有结构化项目简介。下一步先整理当前状态、仓库、负责人、阻塞点和最近决策。",
+    status: "new",
+    receivedAt: "2026-07-06T11:00:00.000Z",
+    extractedMemories: [
+      {
+        id: "memory_import_itms_needs_brief",
+        type: "Fact",
+        title: "iTMS needs a structured brief",
+        content:
+          "iTMS should start with status, repository, owner, blockers, and recent decisions before task generation.",
+        projectId: "project_itms",
+        tags: ["communication-import", "intake", "project-brief"],
+        source: "Meeting import",
+        createdAt: "2026-07-06T11:00:00.000Z",
+      },
+    ],
+    extractedTasks: [
+      {
+        id: "import_task_itms_create_brief",
+        title: "Create iTMS project brief",
+        description:
+          "Collect current status, repository, owner, blockers, and recent decisions.",
+        priority: "medium",
+      },
+    ],
+    extractedRisks: [
+      {
+        id: "import_risk_itms_context_gap",
+        title: "Missing project context",
+        description:
+          "Without a structured brief, generated tasks may be unreliable.",
+        severity: "medium",
+      },
+    ],
+  },
+  {
+    id: "import_finance_email_readonly",
+    title: "Finance automation boundary memo",
+    source: "Email",
+    projectId: "project_flutter_finance",
+    participants: ["Wei"],
+    rawText:
+      "备忘：Finance app MVP 只能做分析和记录，不做交易、转账、券商登录或资金移动。",
+    status: "saved",
+    receivedAt: "2026-07-06T12:20:00.000Z",
+    extractedMemories: [
+      {
+        id: "memory_import_finance_readonly",
+        type: "Decision",
+        title: "Finance import stays read-only",
+        content:
+          "Flutter Finance can summarize and record decisions, but trading, transfers, broker login, and fund movement are blocked.",
+        projectId: "project_flutter_finance",
+        tags: ["communication-import", "finance", "red-action"],
+        source: "Email import",
+        createdAt: "2026-07-06T12:20:00.000Z",
+      },
+    ],
+    extractedTasks: [
+      {
+        id: "import_task_finance_boundary",
+        title: "Document finance read-only boundary",
+        description:
+          "Write the MVP boundary for allowed analysis and blocked execution.",
+        priority: "medium",
+      },
+    ],
+    extractedRisks: [
+      {
+        id: "import_risk_finance_execution",
+        title: "Financial execution must remain blocked",
+        description:
+          "Any trade, transfer, or broker automation is a red-level action.",
+        severity: "critical",
+      },
+    ],
   },
 ];
 
@@ -994,6 +1189,7 @@ const navItems: ActiveView[] = [
   "Dashboard",
   "Projects",
   "Memories",
+  "Imports",
   "Tasks",
   "AI Team",
   "Permissions",
@@ -1010,6 +1206,11 @@ export default function WeiOsPage() {
   const [aiOutput, setAiOutput] = useState<GeneratedAiOutput | null>(null);
   const [auditRecords, setAuditRecords] =
     useState<AuditLogEntry[]>(mockAuditLogs);
+  const [communicationImports, setCommunicationImports] =
+    useState<CommunicationImportRecord[]>(mockCommunicationImports);
+  const [selectedImportId, setSelectedImportId] = useState(
+    mockCommunicationImports[0]!.id,
+  );
   const [projectMemoryTypeFilter, setProjectMemoryTypeFilter] =
     useState<MemoryTypeFilter>("All");
   const [memoryListTypeFilter, setMemoryListTypeFilter] =
@@ -1057,6 +1258,13 @@ export default function WeiOsPage() {
       memoryRecords.find((memory) => memory.id === selectedMemoryId) ??
       memoryRecords[0]!,
     [memoryRecords, selectedMemoryId],
+  );
+
+  const selectedImport = useMemo(
+    () =>
+      communicationImports.find((item) => item.id === selectedImportId) ??
+      communicationImports[0]!,
+    [communicationImports, selectedImportId],
   );
 
   const filteredMemoryRecords = useMemo(
@@ -1118,6 +1326,117 @@ export default function WeiOsPage() {
   function addMemoryToProject(projectId: string) {
     setSelectedProjectId(projectId);
     setActiveView("Memories");
+  }
+
+  function createCommunicationImport(draft: CommunicationImportDraft) {
+    const now = new Date().toISOString();
+    const extracted = createMockCommunicationExtraction({
+      projectId: draft.projectId,
+      rawText: draft.rawText,
+      receivedAt: now,
+      source: draft.source,
+      title: draft.title,
+    });
+    const record: CommunicationImportRecord = {
+      id: `import_manual_${Date.now()}`,
+      title: draft.title.trim(),
+      source: draft.source,
+      projectId: draft.projectId,
+      participants: parseParticipants(draft.participants),
+      rawText: draft.rawText.trim(),
+      status: "new",
+      receivedAt: now,
+      ...extracted,
+    };
+
+    setCommunicationImports((current) => [record, ...current]);
+    setSelectedImportId(record.id);
+    setSelectedProjectId(record.projectId);
+    setAuditRecords((current) => [
+      createManualImportAuditRecord(record, "allowed"),
+      ...current,
+    ]);
+  }
+
+  function markCommunicationImportReviewed(importId: string) {
+    setCommunicationImports((current) =>
+      current.map((item) =>
+        item.id === importId ? { ...item, status: "reviewed" } : item,
+      ),
+    );
+  }
+
+  function saveCommunicationImportMemories(importId: string) {
+    const importRecord = communicationImports.find((item) => item.id === importId);
+    if (!importRecord) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const memories = importRecord.extractedMemories.map((memory, index) => ({
+      ...memory,
+      id: `memory_from_import_${Date.now()}_${index}`,
+      createdAt: now,
+      source: `${importRecord.source} import`,
+      tags: Array.from(new Set([...memory.tags, "communication-import"])),
+    }));
+
+    setMemoryRecords((current) => [...memories, ...current]);
+    if (memories[0]) {
+      setSelectedMemoryId(memories[0].id);
+    }
+    setSelectedProjectId(importRecord.projectId);
+    setCommunicationImports((current) =>
+      current.map((item) =>
+        item.id === importId ? { ...item, status: "saved" } : item,
+      ),
+    );
+    setAuditRecords((current) => [
+      createManualImportAuditRecord(importRecord, "allowed"),
+      ...current,
+    ]);
+  }
+
+  function convertCommunicationImportToTasks(importId: string) {
+    const importRecord = communicationImports.find((item) => item.id === importId);
+    if (!importRecord) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const importedTasks: TaskRecord[] = importRecord.extractedTasks.map(
+      (task, index) => ({
+        id: `task_from_import_${Date.now()}_${index}`,
+        title: task.title,
+        description: task.description,
+        projectId: importRecord.projectId,
+        priority: task.priority,
+        status: "todo",
+        source: `${importRecord.source} import`,
+        owner: "Wei",
+        createdBy: "ai",
+        sourceType: "import",
+        sourceId: importRecord.id,
+        aiAssistable: true,
+        requiresApproval: false,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    );
+
+    setTaskRecords((current) => [...importedTasks, ...current]);
+    setSelectedProjectId(importRecord.projectId);
+    setCommunicationImports((current) =>
+      current.map((item) =>
+        item.id === importId && item.status === "new"
+          ? { ...item, status: "reviewed" }
+          : item,
+      ),
+    );
+    setAuditRecords((current) => [
+      createTaskDraftAuditRecord(importRecord),
+      ...current,
+    ]);
   }
 
   function selectMemoryListTypeFilter(filter: MemoryTypeFilter) {
@@ -1303,6 +1622,19 @@ export default function WeiOsPage() {
             setMemoryListTypeFilter={selectMemoryListTypeFilter}
             setSelectedMemoryId={setSelectedMemoryId}
             createMemory={createMemory}
+          />
+        )}
+        {activeView === "Imports" && (
+          <ImportsView
+            communicationImports={communicationImports}
+            convertCommunicationImportToTasks={convertCommunicationImportToTasks}
+            createCommunicationImport={createCommunicationImport}
+            markCommunicationImportReviewed={markCommunicationImportReviewed}
+            saveCommunicationImportMemories={saveCommunicationImportMemories}
+            selectedImport={selectedImport}
+            selectedImportId={selectedImportId}
+            selectedProjectId={selectedProjectId}
+            setSelectedImportId={setSelectedImportId}
           />
         )}
         {activeView === "Tasks" && (
@@ -2121,6 +2453,368 @@ function ManualMemoryForm({
   );
 }
 
+function ImportsView({
+  communicationImports,
+  convertCommunicationImportToTasks,
+  createCommunicationImport,
+  markCommunicationImportReviewed,
+  saveCommunicationImportMemories,
+  selectedImport,
+  selectedImportId,
+  selectedProjectId,
+  setSelectedImportId,
+}: {
+  communicationImports: CommunicationImportRecord[];
+  convertCommunicationImportToTasks: (importId: string) => void;
+  createCommunicationImport: (draft: CommunicationImportDraft) => void;
+  markCommunicationImportReviewed: (importId: string) => void;
+  saveCommunicationImportMemories: (importId: string) => void;
+  selectedImport: CommunicationImportRecord;
+  selectedImportId: string;
+  selectedProjectId: string;
+  setSelectedImportId: (importId: string) => void;
+}) {
+  return (
+    <section className="importEngineGrid">
+      <section className="panel importListPanel">
+        <div className="panelHeader">
+          <h2>Import Inbox</h2>
+          <span>{communicationImports.length} items</span>
+        </div>
+        <CommunicationImportRows
+          imports={communicationImports}
+          selectedImportId={selectedImportId}
+          setSelectedImportId={setSelectedImportId}
+        />
+      </section>
+
+      <section className="panel importCreatePanel">
+        <ManualCommunicationImportForm
+          createCommunicationImport={createCommunicationImport}
+          selectedProjectId={selectedProjectId}
+        />
+      </section>
+
+      <section className="panel importDetailPanel">
+        <CommunicationImportDetail
+          convertCommunicationImportToTasks={convertCommunicationImportToTasks}
+          importRecord={selectedImport}
+          markCommunicationImportReviewed={markCommunicationImportReviewed}
+          saveCommunicationImportMemories={saveCommunicationImportMemories}
+        />
+      </section>
+    </section>
+  );
+}
+
+function CommunicationImportRows({
+  imports,
+  selectedImportId,
+  setSelectedImportId,
+}: {
+  imports: CommunicationImportRecord[];
+  selectedImportId: string;
+  setSelectedImportId: (importId: string) => void;
+}) {
+  if (imports.length === 0) {
+    return <EmptyList text="No communication imports yet." />;
+  }
+
+  return (
+    <div className="importList">
+      {imports.map((item) => (
+        <button
+          className={
+            item.id === selectedImportId
+              ? "importListButton selected"
+              : "importListButton"
+          }
+          key={item.id}
+          onClick={() => setSelectedImportId(item.id)}
+          type="button"
+        >
+          <div className="importListHeader">
+            <span className={`sourcePill ${sourceClassName(item.source)}`}>
+              {item.source}
+            </span>
+            <span className={`importStatus ${item.status}`}>{item.status}</span>
+          </div>
+          <strong>{item.title}</strong>
+          <small>
+            {projectNameFor(item.projectId)} · {formatDate(item.receivedAt)}
+          </small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CommunicationImportDetail({
+  convertCommunicationImportToTasks,
+  importRecord,
+  markCommunicationImportReviewed,
+  saveCommunicationImportMemories,
+}: {
+  convertCommunicationImportToTasks: (importId: string) => void;
+  importRecord: CommunicationImportRecord;
+  markCommunicationImportReviewed: (importId: string) => void;
+  saveCommunicationImportMemories: (importId: string) => void;
+}) {
+  return (
+    <div className="importDetailStack">
+      <div className="panelHeader">
+        <div>
+          <h2>{importRecord.title}</h2>
+          <p className="subtleText">
+            {projectNameFor(importRecord.projectId)} ·{" "}
+            {formatDate(importRecord.receivedAt)}
+          </p>
+        </div>
+        <div className="importHeaderPills">
+          <span className={`sourcePill ${sourceClassName(importRecord.source)}`}>
+            {importRecord.source}
+          </span>
+          <span className={`importStatus ${importRecord.status}`}>
+            {importRecord.status}
+          </span>
+        </div>
+      </div>
+
+      <div className="communicationMetaGrid">
+        <MemoryMeta
+          label="Project"
+          value={projectNameFor(importRecord.projectId)}
+        />
+        <MemoryMeta
+          label="Participants"
+          value={
+            importRecord.participants.length > 0
+              ? importRecord.participants.join(", ")
+              : "No participants"
+          }
+        />
+        <MemoryMeta label="Source" value={importRecord.source} />
+        <MemoryMeta label="Status" value={importRecord.status} />
+      </div>
+
+      <div className="communicationRawBox">
+        <div className="panelHeader compactHeader">
+          <h3>Raw Text</h3>
+          <span>manual paste</span>
+        </div>
+        <p>{importRecord.rawText}</p>
+      </div>
+
+      <div className="outputActions">
+        <button
+          className="secondaryButton"
+          onClick={() => markCommunicationImportReviewed(importRecord.id)}
+          type="button"
+        >
+          Mark Reviewed
+        </button>
+        <button
+          className="secondaryButton"
+          onClick={() => saveCommunicationImportMemories(importRecord.id)}
+          type="button"
+        >
+          Save Memories
+        </button>
+        <button
+          className="secondaryButton"
+          onClick={() => convertCommunicationImportToTasks(importRecord.id)}
+          type="button"
+        >
+          Convert to Tasks
+        </button>
+      </div>
+
+      <section className="extractionGrid">
+        <div className="extractionColumn">
+          <div className="panelHeader compactHeader">
+            <h3>Memories</h3>
+            <span>{importRecord.extractedMemories.length}</span>
+          </div>
+          <ExtractedMemoryList memories={importRecord.extractedMemories} />
+        </div>
+        <div className="extractionColumn">
+          <div className="panelHeader compactHeader">
+            <h3>Tasks</h3>
+            <span>{importRecord.extractedTasks.length}</span>
+          </div>
+          <ExtractedTaskList tasks={importRecord.extractedTasks} />
+        </div>
+        <div className="extractionColumn">
+          <div className="panelHeader compactHeader">
+            <h3>Risks</h3>
+            <span>{importRecord.extractedRisks.length}</span>
+          </div>
+          <ProblemList problems={importRecord.extractedRisks} risks={[]} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ExtractedMemoryList({ memories }: { memories: MemoryRecord[] }) {
+  if (memories.length === 0) {
+    return <EmptyList text="No memory candidates extracted." />;
+  }
+
+  return (
+    <div className="sectionList">
+      {memories.map((memory) => (
+        <article className="compactItem" key={memory.id}>
+          <span className={`memoryTypePill ${memory.type.toLowerCase()}`}>
+            {memory.type}
+          </span>
+          <div>
+            <h3>{memory.title}</h3>
+            <p>{memory.content}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ExtractedTaskList({
+  tasks: extractedTasks,
+}: {
+  tasks: CommunicationExtractedTask[];
+}) {
+  if (extractedTasks.length === 0) {
+    return <EmptyList text="No task candidates extracted." />;
+  }
+
+  return (
+    <div className="sectionList">
+      {extractedTasks.map((task) => (
+        <article className="compactItem" key={task.id}>
+          <span className={`priority ${task.priority}`}>{task.priority}</span>
+          <div>
+            <h3>{task.title}</h3>
+            <p>{task.description}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ManualCommunicationImportForm({
+  createCommunicationImport,
+  selectedProjectId,
+}: {
+  createCommunicationImport: (draft: CommunicationImportDraft) => void;
+  selectedProjectId: string;
+}) {
+  const [draft, setDraft] = useState<CommunicationImportDraft>({
+    title: "",
+    source: "WeChat",
+    projectId: selectedProjectId,
+    participants: "",
+    rawText: "",
+  });
+
+  useEffect(() => {
+    setDraft((current) => ({ ...current, projectId: selectedProjectId }));
+  }, [selectedProjectId]);
+
+  const canCreate = draft.title.trim().length > 0 && draft.rawText.trim().length > 0;
+
+  function updateDraft<Key extends keyof CommunicationImportDraft>(
+    key: Key,
+    value: CommunicationImportDraft[Key],
+  ) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function submitImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canCreate) {
+      return;
+    }
+
+    createCommunicationImport(draft);
+    setDraft((current) => ({
+      ...current,
+      title: "",
+      participants: "",
+      rawText: "",
+    }));
+  }
+
+  return (
+    <form className="manualImportForm" onSubmit={submitImport}>
+      <div className="panelHeader">
+        <h2>Manual Import</h2>
+        <span>permission-first</span>
+      </div>
+      <div className="formGrid">
+        <label className="field spanFull">
+          <span>Title</span>
+          <input
+            className="input"
+            onChange={(event) => updateDraft("title", event.target.value)}
+            value={draft.title}
+          />
+        </label>
+        <label className="field">
+          <span>Source</span>
+          <select
+            className="select"
+            onChange={(event) =>
+              updateDraft("source", event.target.value as CommunicationSource)
+            }
+            value={draft.source}
+          >
+            {communicationSources.map((source) => (
+              <option key={source} value={source}>
+                {source}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Project</span>
+          <select
+            className="select"
+            onChange={(event) => updateDraft("projectId", event.target.value)}
+            value={draft.projectId}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field spanFull">
+          <span>Participants</span>
+          <input
+            className="input"
+            onChange={(event) => updateDraft("participants", event.target.value)}
+            placeholder="comma separated"
+            value={draft.participants}
+          />
+        </label>
+        <label className="field spanFull">
+          <span>Raw text</span>
+          <textarea
+            onChange={(event) => updateDraft("rawText", event.target.value)}
+            value={draft.rawText}
+          />
+        </label>
+      </div>
+      <button className="primaryButton" disabled={!canCreate} type="submit">
+        Create import
+      </button>
+    </form>
+  );
+}
+
 function TasksView({
   createManualTask,
   selectedProjectId,
@@ -2886,6 +3580,8 @@ function viewTitle(view: ActiveView): string {
       return "项目中枢";
     case "Memories":
       return "长期记忆";
+    case "Imports":
+      return "沟通导入";
     case "Tasks":
       return "任务引擎";
     case "AI Team":
@@ -2928,6 +3624,147 @@ function filterTasks(
 
     return matchesProject && matchesPriority;
   });
+}
+
+function parseParticipants(rawParticipants: string): string[] {
+  return rawParticipants
+    .split(",")
+    .map((participant) => participant.trim())
+    .filter(Boolean);
+}
+
+function createManualImportAuditRecord(
+  importRecord: CommunicationImportRecord,
+  result: AuditLogResult,
+): AuditLogEntry {
+  return {
+    id: `audit_import_${importRecord.id}_${Date.now()}`,
+    actor: "AI",
+    action: "AI can summarize project",
+    target: importRecord.title,
+    riskLevel: "green",
+    result,
+    detail:
+      "Processed a manually pasted communication import without reading external apps directly.",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function createTaskDraftAuditRecord(
+  importRecord: CommunicationImportRecord,
+): AuditLogEntry {
+  return {
+    id: `audit_import_task_${importRecord.id}_${Date.now()}`,
+    actor: "AI",
+    action: "AI can create task draft",
+    target: importRecord.title,
+    riskLevel: "green",
+    result: "allowed",
+    detail:
+      "Converted reviewed communication import candidates into local task drafts.",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function createMockCommunicationExtraction({
+  projectId,
+  rawText,
+  receivedAt,
+  source,
+  title,
+}: {
+  projectId: string;
+  rawText: string;
+  receivedAt: string;
+  source: CommunicationSource;
+  title: string;
+}): Pick<
+  CommunicationImportRecord,
+  "extractedMemories" | "extractedTasks" | "extractedRisks"
+> {
+  const normalizedText = rawText.trim();
+  const lowerText = normalizedText.toLowerCase();
+  const mentionsRisk =
+    normalizedText.includes("风险") ||
+    normalizedText.includes("延期") ||
+    lowerText.includes("risk") ||
+    lowerText.includes("delay");
+  const mentionsDecision =
+    normalizedText.includes("决定") ||
+    normalizedText.includes("确认") ||
+    lowerText.includes("decision") ||
+    lowerText.includes("confirm");
+  const memoryType: MemoryKind = mentionsRisk
+    ? "Risk"
+    : mentionsDecision
+      ? "Decision"
+      : "Fact";
+  const memoryTitle =
+    mentionsRisk || mentionsDecision
+      ? `${title} key signal`
+      : `${title} imported fact`;
+  const taskTitle = mentionsDecision
+    ? `Confirm follow-up for ${projectNameFor(projectId)}`
+    : `Review imported context for ${projectNameFor(projectId)}`;
+  const taskPriority: Task["priority"] = mentionsRisk ? "high" : "medium";
+  const riskSeverity: ProjectProblem["severity"] = mentionsRisk
+    ? "high"
+    : "medium";
+
+  return {
+    extractedMemories: [
+      {
+        id: `memory_candidate_${Date.now()}`,
+        type: memoryType,
+        title: memoryTitle,
+        content:
+          normalizedText.length > 180
+            ? `${normalizedText.slice(0, 180)}...`
+            : normalizedText,
+        projectId,
+        tags: ["communication-import", source.toLowerCase()],
+        source: `${source} import`,
+        createdAt: receivedAt,
+      },
+    ],
+    extractedTasks: [
+      {
+        id: `task_candidate_${Date.now()}`,
+        title: taskTitle,
+        description:
+          "Review the imported communication and decide whether the extracted item should become a formal next action.",
+        priority: taskPriority,
+      },
+    ],
+    extractedRisks: mentionsRisk
+      ? [
+          {
+            id: `risk_candidate_${Date.now()}`,
+            title: `${projectNameFor(projectId)} imported risk signal`,
+            description:
+              "The pasted communication contains timing, delivery, or decision risk language that should be reviewed.",
+            severity: riskSeverity,
+          },
+        ]
+      : [],
+  };
+}
+
+function sourceClassName(source: CommunicationSource): string {
+  switch (source) {
+    case "WeChat":
+      return "wechat";
+    case "DingTalk":
+      return "dingtalk";
+    case "Email":
+      return "email";
+    case "Slack":
+      return "slack";
+    case "Meeting":
+      return "meeting";
+    case "Manual Note":
+      return "manual-note";
+  }
 }
 
 function aiActionDefinitionFor(action: AiActionKind): AiActionDefinition {

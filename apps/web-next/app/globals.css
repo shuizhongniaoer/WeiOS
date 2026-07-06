@@ -820,6 +820,153 @@ h1 {
   width: 100%;
 }
 
+.importEngineGrid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 360px minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.importListPanel,
+.importCreatePanel,
+.importDetailPanel {
+  min-width: 0;
+}
+
+.importDetailPanel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.importList,
+.manualImportForm,
+.importDetailStack {
+  display: grid;
+  gap: 12px;
+}
+
+.importListButton {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  min-height: 108px;
+  padding: 12px;
+  text-align: left;
+}
+
+.importListButton:hover,
+.importListButton:focus-visible,
+.importListButton.selected {
+  border-color: #b8dfc9;
+  box-shadow: inset 3px 0 0 var(--green);
+  outline: none;
+}
+
+.importListButton strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.importListButton small,
+.subtleText {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.importListHeader,
+.importHeaderPills {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.sourcePill,
+.importStatus {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  justify-self: start;
+  padding: 5px 8px;
+  text-transform: capitalize;
+}
+
+.sourcePill.wechat,
+.sourcePill.slack {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.sourcePill.dingtalk,
+.sourcePill.email {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.sourcePill.meeting,
+.sourcePill.manual-note {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.importStatus {
+  background: var(--gray-soft);
+  color: #46514b;
+}
+
+.importStatus.reviewed {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.importStatus.saved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.communicationMetaGrid,
+.extractionGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.communicationMetaGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.communicationRawBox,
+.extractionColumn {
+  background: #fbfcfb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.communicationRawBox p {
+  color: #344039;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.extractionGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.extractionColumn {
+  align-content: start;
+  min-width: 0;
+}
+
 .taskEngineGrid {
   display: grid;
   gap: 16px;
@@ -1361,6 +1508,9 @@ textarea {
   .aiActionGrid,
   .memoryEngineGrid,
   .memoryMetaGrid,
+  .importEngineGrid,
+  .communicationMetaGrid,
+  .extractionGrid,
   .taskEngineGrid,
   .taskBoard,
   .taskMetaGrid,
@@ -1382,6 +1532,11 @@ textarea {
   }
 
   .taskBoardPanel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .importDetailPanel {
     grid-column: auto;
     grid-row: auto;
   }

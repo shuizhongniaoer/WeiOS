@@ -1,0 +1,17 @@
+{
+  "name": "weios",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev:api": "pnpm --filter @weios/api-nest start:dev",
+    "dev:web": "pnpm --filter @weios/web-next dev",
+    "format": "pnpm -r format",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

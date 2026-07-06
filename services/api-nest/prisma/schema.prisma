@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  active
+  paused
+  blocked
+  done
+  idea
+}
+
+enum MemoryType {
+  long_term
+  project
+  decision
+  people
+  finance
+  health
+  prompt
+  experience
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum TaskStatus {
+  todo
+  doing
+  blocked
+  done
+}
+
+enum AgentProvider {
+  openai
+  anthropic
+  google
+  local
+}
+
+enum RiskLevel {
+  green
+  yellow
+  red
+}
+
+enum AuditActor {
+  user
+  ai
+  plugin
+  system
+}
+
+enum AuditStatus {
+  planned
+  approved
+  blocked
+  executed
+  failed
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  profile     String
+  goals       String[]
+  preferences Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  name         String
+  description  String
+  status       ProjectStatus @default(active)
+  priority     Int
+  goals        String[]
+  currentState String
+  memories     Memory[]
+  tasks        Task[]
+  risks        Risk[]
+  repositories Repository[]
+  documents    ProjectDocument[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Memory {
+  id         String     @id @default(cuid())
+  type       MemoryType
+  title      String
+  content    String
+  source     String
+  projectId  String?
+  project    Project?   @relation(fields: [projectId], references: [id])
+  peopleIds  String[]
+  tags       String[]
+  confidence Float
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  projectId   String?
+  project     Project?     @relation(fields: [projectId], references: [id])
+  priority    TaskPriority
+  status      TaskStatus
+  dueDate     DateTime?
+  source      String
+  owner       String
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Risk {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  severity    String
+  status      String
+  owner       String?
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Repository {
+  id            String  @id @default(cuid())
+  name          String
+  url           String
+  defaultBranch String?
+  projectId     String
+  project       Project @relation(fields: [projectId], references: [id])
+}
+
+model ProjectDocument {
+  id        String  @id @default(cuid())
+  title     String
+  pathOrUrl String
+  kind      String
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+}
+
+model Agent {
+  id          String        @id @default(cuid())
+  name        String
+  role        String
+  provider    AgentProvider
+  model       String
+  permissions String[]
+  enabled     Boolean       @default(true)
+  lastRunAt   DateTime?
+}
+
+model Workflow {
+  id        String    @id @default(cuid())
+  name      String
+  trigger   String
+  steps     Json
+  riskLevel RiskLevel
+  enabled   Boolean   @default(true)
+}
+
+model Permission {
+  id               String    @id @default(cuid())
+  scope            String    @unique
+  riskLevel        RiskLevel
+  description      String
+  requiresApproval Boolean
+  enabled          Boolean   @default(true)
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actor      AuditActor
+  action     String
+  target     String
+  riskLevel  RiskLevel
+  status     AuditStatus
+  approvedBy String?
+  reason     String?
+  result     String?
+  timestamp  DateTime    @default(now())
+}

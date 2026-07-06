@@ -500,6 +500,13 @@ h1 {
   text-align: left;
 }
 
+.aiActionCardHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
 .aiActionCard:hover,
 .aiActionCard:focus-visible {
   border-color: #b8dfc9;
@@ -525,6 +532,13 @@ h1 {
 .aiOutputBox .panelHeader p {
   color: var(--muted);
   font-size: 12px;
+}
+
+.aiOutputMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .aiOutputBody {
@@ -1137,27 +1151,170 @@ textarea {
   color: var(--danger) !important;
 }
 
-.policyRow {
+.permissionCenterGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.permissionSummaryGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.permissionLevelCard,
+.permissionRuleRow,
+.auditRow {
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+
+.permissionLevelCard {
+  display: grid;
+  gap: 10px;
+  min-height: 112px;
   padding: 14px;
 }
 
-.policyRow.green {
+.permissionLevelCard.green {
   background: var(--green-soft);
 }
 
-.policyRow.yellow {
+.permissionLevelCard.yellow {
   background: var(--amber-soft);
 }
 
-.policyRow.red {
+.permissionLevelCard.red {
   background: #ffe9e7;
 }
 
-.policyRow strong {
-  display: block;
-  margin-bottom: 6px;
+.permissionLevelCard h3,
+.permissionRuleTitle h3,
+.auditRow h3 {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.permissionLevelCard p,
+.permissionRuleRow p,
+.auditRow p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.permissionRuleList,
+.auditList {
+  display: grid;
+  gap: 10px;
+}
+
+.permissionRuleRow,
+.auditRow {
+  background: #ffffff;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.permissionRuleRow {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 220px;
+}
+
+.permissionRuleRow.green {
+  box-shadow: inset 4px 0 0 var(--green);
+}
+
+.permissionRuleRow.yellow {
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+
+.permissionRuleRow.red {
+  box-shadow: inset 4px 0 0 var(--danger);
+}
+
+.permissionRuleTitle {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.permissionRuleMeta {
+  display: grid;
+  gap: 8px;
+}
+
+.permissionMeta {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 52px;
+  padding: 10px;
+}
+
+.permissionMeta span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.permissionMeta strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.policyPill,
+.auditResult {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  justify-self: start;
+  padding: 6px 8px;
+}
+
+.policyPill.allow,
+.auditResult.allowed,
+.auditResult.approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.policyPill.confirm,
+.auditResult.queued {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.policyPill.deny,
+.auditResult.blocked {
+  background: #ffe9e7;
+  color: var(--danger);
+}
+
+.auditRow {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.auditRow.compact {
+  grid-template-columns: 1fr;
+}
+
+.auditRowMeta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.auditRow.compact .auditRowMeta {
+  grid-template-columns: 1fr;
 }
 
 .settingRow {
@@ -1207,6 +1364,11 @@ textarea {
   .taskEngineGrid,
   .taskBoard,
   .taskMetaGrid,
+  .permissionCenterGrid,
+  .permissionSummaryGrid,
+  .permissionRuleRow,
+  .auditRow,
+  .auditRowMeta,
   .formGrid,
   .importBox,
   .agentGrid,

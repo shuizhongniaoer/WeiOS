@@ -39,11 +39,35 @@ type ProjectResource = {
   owner: string;
 };
 
+type PermissionRiskLevel = "green" | "yellow" | "red";
+type PermissionPolicy = "allow" | "confirm" | "deny";
+type AuditLogResult = "allowed" | "queued" | "approved" | "blocked";
+
+type PermissionRule = {
+  id: string;
+  action: string;
+  description: string;
+  target: string;
+  riskLevel: PermissionRiskLevel;
+  defaultPolicy: PermissionPolicy;
+};
+
+type AuditLogEntry = {
+  id: string;
+  actor: "AI" | "Wei";
+  action: string;
+  target: string;
+  riskLevel: PermissionRiskLevel;
+  result: AuditLogResult;
+  detail: string;
+  createdAt: string;
+};
+
 type ProjectAiAction = {
   id: string;
   title: string;
   description: string;
-  riskLevel: "green" | "yellow" | "red";
+  riskLevel: PermissionRiskLevel;
 };
 
 type AiActionKind =
@@ -56,6 +80,8 @@ type AiActionDefinition = {
   kind: AiActionKind;
   title: string;
   description: string;
+  riskLevel: PermissionRiskLevel;
+  permissionAction: string;
 };
 
 type GeneratedAiOutput = {
@@ -65,6 +91,7 @@ type GeneratedAiOutput = {
   content: string;
   projectId: string;
   projectName: string;
+  riskLevel: PermissionRiskLevel;
   memoryType: MemoryKind;
   taskTitle: string;
   taskDescription: string;
@@ -142,21 +169,131 @@ const aiActionDefinitions: AiActionDefinition[] = [
     kind: "summarize_project",
     title: "Summarize Project",
     description: "Create a concise project brief from the current hub state.",
+    riskLevel: "green",
+    permissionAction: "AI can summarize project",
   },
   {
     kind: "generate_next_actions",
     title: "Generate Next Actions",
     description: "Suggest focused follow-up tasks for the selected project.",
+    riskLevel: "green",
+    permissionAction: "AI can create task draft",
   },
   {
     kind: "extract_risks",
     title: "Extract Risks",
     description: "Turn problems, context, and memories into risk notes.",
+    riskLevel: "green",
+    permissionAction: "AI can summarize project",
   },
   {
     kind: "create_codex_prompt",
     title: "Create Codex Prompt",
     description: "Draft a ready-to-run prompt for the next Codex session.",
+    riskLevel: "yellow",
+    permissionAction: "AI can modify code",
+  },
+];
+
+const permissionRules: PermissionRule[] = [
+  {
+    id: "permission_summarize_project",
+    action: "AI can summarize project",
+    description: "Read local project context and generate a summary or risk brief.",
+    target: "Project Hub",
+    riskLevel: "green",
+    defaultPolicy: "allow",
+  },
+  {
+    id: "permission_create_task_draft",
+    action: "AI can create task draft",
+    description: "Create local task drafts from project context or AI output.",
+    target: "Task Engine",
+    riskLevel: "green",
+    defaultPolicy: "allow",
+  },
+  {
+    id: "permission_modify_code",
+    action: "AI can modify code",
+    description: "Change files in a repository after user-directed development work.",
+    target: "Code workspace",
+    riskLevel: "yellow",
+    defaultPolicy: "confirm",
+  },
+  {
+    id: "permission_send_message",
+    action: "AI can send message",
+    description: "Send email, Slack, WeChat, or other outbound communication.",
+    target: "External communication",
+    riskLevel: "red",
+    defaultPolicy: "deny",
+  },
+  {
+    id: "permission_trade_stocks",
+    action: "AI can trade stocks",
+    description: "Place orders, transfer funds, or operate broker accounts.",
+    target: "Finance execution",
+    riskLevel: "red",
+    defaultPolicy: "deny",
+  },
+  {
+    id: "permission_delete_files",
+    action: "AI can delete files",
+    description: "Delete user files, project folders, or durable records.",
+    target: "Filesystem",
+    riskLevel: "red",
+    defaultPolicy: "deny",
+  },
+  {
+    id: "permission_deploy_production",
+    action: "AI can deploy production",
+    description: "Deploy production services or change live infrastructure.",
+    target: "Production",
+    riskLevel: "red",
+    defaultPolicy: "deny",
+  },
+];
+
+const mockAuditLogs: AuditLogEntry[] = [
+  {
+    id: "audit_weios_summary_allowed",
+    actor: "AI",
+    action: "AI can summarize project",
+    target: "WeiOS / KnowMe v2.0",
+    riskLevel: "green",
+    result: "allowed",
+    detail: "Generated project focus from local mock Project Hub data.",
+    createdAt: "2026-07-06T10:00:00.000Z",
+  },
+  {
+    id: "audit_task_draft_allowed",
+    actor: "AI",
+    action: "AI can create task draft",
+    target: "Task Engine",
+    riskLevel: "green",
+    result: "allowed",
+    detail: "Converted reviewed AI output into a local task draft.",
+    createdAt: "2026-07-06T10:08:00.000Z",
+  },
+  {
+    id: "audit_code_change_approved",
+    actor: "Wei",
+    action: "AI can modify code",
+    target: "WeiOS repository",
+    riskLevel: "yellow",
+    result: "approved",
+    detail: "User authorized WeiOS frontend development in the local repository.",
+    createdAt: "2026-07-06T10:16:00.000Z",
+  },
+  {
+    id: "audit_finance_trade_blocked",
+    actor: "AI",
+    action: "AI can trade stocks",
+    target: "Flutter Finance",
+    riskLevel: "red",
+    result: "blocked",
+    detail: "Finance actions stay analysis-only; trade and transfer execution are blocked.",
+    createdAt: "2026-07-06T10:24:00.000Z",
   },
 ];
 
@@ -871,6 +1008,8 @@ export default function WeiOsPage() {
     useState<MemoryRecord[]>(mockMemories);
   const [selectedMemoryId, setSelectedMemoryId] = useState(mockMemories[0]!.id);
   const [aiOutput, setAiOutput] = useState<GeneratedAiOutput | null>(null);
+  const [auditRecords, setAuditRecords] =
+    useState<AuditLogEntry[]>(mockAuditLogs);
   const [projectMemoryTypeFilter, setProjectMemoryTypeFilter] =
     useState<MemoryTypeFilter>("All");
   const [memoryListTypeFilter, setMemoryListTypeFilter] =
@@ -923,6 +1062,11 @@ export default function WeiOsPage() {
   const filteredMemoryRecords = useMemo(
     () => filterMemoriesByType(memoryRecords, memoryListTypeFilter),
     [memoryListTypeFilter, memoryRecords],
+  );
+
+  const pendingApprovalCount = useMemo(
+    () => auditRecords.filter((record) => record.result === "queued").length,
+    [auditRecords],
   );
 
   async function summarizeMemory() {
@@ -986,7 +1130,10 @@ export default function WeiOsPage() {
   }
 
   function runAiAction(action: AiActionKind, project: ProjectHubRecord) {
-    setAiOutput(createMockAiOutput(action, project));
+    const output = createMockAiOutput(action, project);
+
+    setAiOutput(output);
+    setAuditRecords((current) => [createAuditLogForAiOutput(output), ...current]);
   }
 
   function saveAiOutputAsMemory(output: GeneratedAiOutput) {
@@ -1118,6 +1265,7 @@ export default function WeiOsPage() {
             isSummarizing={isSummarizing}
             summaryError={summaryError}
             memoryCount={memoryRecords.length}
+            pendingApprovalCount={pendingApprovalCount}
             tasks={taskRecords}
           />
         )}
@@ -1166,7 +1314,9 @@ export default function WeiOsPage() {
           />
         )}
         {activeView === "AI Team" && <AgentsView />}
-        {activeView === "Permissions" && <PermissionsView />}
+        {activeView === "Permissions" && (
+          <PermissionsView auditRecords={auditRecords} />
+        )}
         {activeView === "Settings" && <SettingsView />}
       </section>
     </main>
@@ -1185,6 +1335,7 @@ function DashboardView({
   isSummarizing,
   summaryError,
   memoryCount,
+  pendingApprovalCount,
 }: {
   onGoTo: (view: ActiveView) => void;
   selectedProject: Pick<
@@ -1200,13 +1351,18 @@ function DashboardView({
   isSummarizing: boolean;
   summaryError: string;
   memoryCount: number;
+  pendingApprovalCount: number;
 }) {
   return (
     <>
       <section className="metricGrid" aria-label="WeiOS status">
         <Metric label="Active projects" value="7" tone="blue" />
         <Metric label="Open risks" value="2" tone="amber" />
-        <Metric label="Pending approvals" value="0" tone="green" />
+        <Metric
+          label="Pending approvals"
+          value={String(pendingApprovalCount)}
+          tone="green"
+        />
         <Metric label="Memory items" value={String(memoryCount)} tone="gray" />
       </section>
 
@@ -1602,7 +1758,12 @@ function AiActionPanel({
             onClick={() => runAiAction(action.kind, project)}
             type="button"
           >
-            <strong>{action.title}</strong>
+            <div className="aiActionCardHeader">
+              <strong>{action.title}</strong>
+              <span className={`riskPill ${action.riskLevel}`}>
+                {riskLabel(action.riskLevel)}
+              </span>
+            </div>
             <p>{action.description}</p>
           </button>
         ))}
@@ -1615,10 +1776,22 @@ function AiActionPanel({
               <h3>{output.title}</h3>
               <p>{output.projectName}</p>
             </div>
-            <span>{formatDate(output.createdAt)}</span>
+            <div className="aiOutputMeta">
+              <span className={`riskPill ${output.riskLevel}`}>
+                {riskLabel(output.riskLevel)}
+              </span>
+              <span>{formatDate(output.createdAt)}</span>
+            </div>
           </div>
           <p className="aiOutputBody">{output.content}</p>
           <div className="outputActions">
+            <button
+              className="secondaryButton"
+              onClick={() => runAiAction(output.action, project)}
+              type="button"
+            >
+              Regenerate
+            </button>
             <button
               className="secondaryButton"
               onClick={() => saveAiOutputAsMemory(output)}
@@ -2316,44 +2489,187 @@ function AgentsView() {
   );
 }
 
-function PermissionsView() {
+function PermissionsView({
+  auditRecords,
+}: {
+  auditRecords: AuditLogEntry[];
+}) {
+  const pendingRecords = auditRecords.filter(
+    (record) => record.result === "queued",
+  );
+
   return (
-    <section className="contentGrid">
-      <section className="panel spanTwo">
+    <section className="permissionCenterGrid">
+      <section className="panel spanFull">
         <div className="panelHeader">
           <h2>权限分级</h2>
-          <span>Security Center</span>
+          <span>Permission Center v0</span>
         </div>
-        <div className="policyList">
-          <PolicyRow
+        <div className="permissionSummaryGrid">
+          <PermissionLevelCard
             level="green"
             title="Green"
-            body="读项目文档、写草稿、生成总结、创建本地任务。"
+            body="自动允许低风险、本地、可撤销的 AI 辅助动作。"
           />
-          <PolicyRow
+          <PermissionLevelCard
             level="yellow"
             title="Yellow"
-            body="修改代码、更新正式文档、调用外部 API、写入长期记忆前需要确认。"
+            body="进入确认队列，用户批准后才成为正式动作。"
           />
-          <PolicyRow
+          <PermissionLevelCard
             level="red"
             title="Red"
-            body="发消息、交易、转账、删重要文件、读浏览器 Cookie、生产部署默认禁止。"
+            body="默认拦截外部发送、资金执行、删除和生产变更。"
           />
         </div>
+      </section>
+
+      <section className="panel spanTwo">
+        <div className="panelHeader">
+          <h2>默认权限规则</h2>
+          <span>{permissionRules.length} rules</span>
+        </div>
+        <PermissionRuleList />
       </section>
 
       <section className="panel">
         <div className="panelHeader">
           <h2>待确认动作</h2>
-          <span>0 pending</span>
+          <span>{pendingRecords.length} pending</span>
         </div>
-        <div className="emptyState">
-          <strong>队列为空</strong>
-          <p>下一步会把 OpenClaw/WeiOS 的高风险动作接入这里。</p>
+        <PendingReviewQueue records={pendingRecords} />
+      </section>
+
+      <section className="panel spanFull">
+        <div className="panelHeader">
+          <h2>审计日志</h2>
+          <span>{auditRecords.length} events</span>
         </div>
+        <AuditLogList records={auditRecords} />
       </section>
     </section>
+  );
+}
+
+function PermissionLevelCard({
+  level,
+  title,
+  body,
+}: {
+  level: PermissionRiskLevel;
+  title: string;
+  body: string;
+}) {
+  const ruleCount = permissionRules.filter(
+    (rule) => rule.riskLevel === level,
+  ).length;
+
+  return (
+    <article className={`permissionLevelCard ${level}`}>
+      <div className="panelHeader compactHeader">
+        <h3>{title}</h3>
+        <span>{ruleCount} rules</span>
+      </div>
+      <p>{body}</p>
+    </article>
+  );
+}
+
+function PermissionRuleList() {
+  return (
+    <div className="permissionRuleList">
+      {permissionRules.map((rule) => (
+        <article className={`permissionRuleRow ${rule.riskLevel}`} key={rule.id}>
+          <div>
+            <div className="permissionRuleTitle">
+              <span className={`riskPill ${rule.riskLevel}`}>
+                {riskLabel(rule.riskLevel)}
+              </span>
+              <h3>{rule.action}</h3>
+            </div>
+            <p>{rule.description}</p>
+          </div>
+          <div className="permissionRuleMeta">
+            <PermissionMeta label="Target" value={rule.target} />
+            <div className={`policyPill ${rule.defaultPolicy}`}>
+              {policyLabel(rule.defaultPolicy)}
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function PermissionMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="permissionMeta">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PendingReviewQueue({ records }: { records: AuditLogEntry[] }) {
+  if (records.length === 0) {
+    return (
+      <div className="emptyState">
+        <strong>队列为空</strong>
+        <p>黄色动作会出现在这里；红色动作默认拦截，不进入确认队列。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auditList">
+      {records.map((record) => (
+        <AuditLogRow compact key={record.id} record={record} />
+      ))}
+    </div>
+  );
+}
+
+function AuditLogList({ records }: { records: AuditLogEntry[] }) {
+  if (records.length === 0) {
+    return <EmptyList text="No permission events recorded yet." />;
+  }
+
+  return (
+    <div className="auditList">
+      {records.map((record) => (
+        <AuditLogRow key={record.id} record={record} />
+      ))}
+    </div>
+  );
+}
+
+function AuditLogRow({
+  compact = false,
+  record,
+}: {
+  compact?: boolean;
+  record: AuditLogEntry;
+}) {
+  return (
+    <article className={compact ? "auditRow compact" : "auditRow"}>
+      <div className="auditRowMain">
+        <div className="permissionRuleTitle">
+          <span className={`riskPill ${record.riskLevel}`}>
+            {riskLabel(record.riskLevel)}
+          </span>
+          <h3>{record.action}</h3>
+        </div>
+        <p>{record.detail}</p>
+      </div>
+      <div className="auditRowMeta">
+        <PermissionMeta label="Target" value={record.target} />
+        {!compact ? <PermissionMeta label="Actor" value={record.actor} /> : null}
+        <PermissionMeta label="Date" value={formatDate(record.createdAt)} />
+        <div className={`auditResult ${record.result}`}>
+          {auditResultLabel(record.result)}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -2536,23 +2852,6 @@ function AgentList({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function PolicyRow({
-  level,
-  title,
-  body,
-}: {
-  level: "green" | "yellow" | "red";
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className={`policyRow ${level}`}>
-      <strong>{title}</strong>
-      <p>{body}</p>
-    </div>
-  );
-}
-
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="settingRow">
@@ -2631,11 +2930,78 @@ function filterTasks(
   });
 }
 
+function aiActionDefinitionFor(action: AiActionKind): AiActionDefinition {
+  return (
+    aiActionDefinitions.find((definition) => definition.kind === action) ??
+    aiActionDefinitions[0]!
+  );
+}
+
+function createAuditLogForAiOutput(output: GeneratedAiOutput): AuditLogEntry {
+  const actionDefinition = aiActionDefinitionFor(output.action);
+  const result: AuditLogResult =
+    output.riskLevel === "green"
+      ? "allowed"
+      : output.riskLevel === "yellow"
+        ? "queued"
+        : "blocked";
+
+  return {
+    id: `audit_${output.id}`,
+    actor: "AI",
+    action: actionDefinition.permissionAction,
+    target: output.projectName,
+    riskLevel: output.riskLevel,
+    result,
+    detail:
+      output.riskLevel === "yellow"
+        ? "Generated local draft. User review is required before it becomes an execution prompt."
+        : "Generated mock AI output from local Project Hub context.",
+    createdAt: output.createdAt,
+  };
+}
+
+function riskLabel(level: PermissionRiskLevel): string {
+  switch (level) {
+    case "green":
+      return "Green";
+    case "yellow":
+      return "Yellow";
+    case "red":
+      return "Red";
+  }
+}
+
+function policyLabel(policy: PermissionPolicy): string {
+  switch (policy) {
+    case "allow":
+      return "Auto allow";
+    case "confirm":
+      return "Confirm first";
+    case "deny":
+      return "Denied";
+  }
+}
+
+function auditResultLabel(result: AuditLogResult): string {
+  switch (result) {
+    case "allowed":
+      return "Allowed";
+    case "queued":
+      return "Pending review";
+    case "approved":
+      return "Approved";
+    case "blocked":
+      return "Blocked";
+  }
+}
+
 function createMockAiOutput(
   action: AiActionKind,
   project: ProjectHubRecord,
 ): GeneratedAiOutput {
   const now = new Date().toISOString();
+  const actionDefinition = aiActionDefinitionFor(action);
   const openProblems = project.currentProblems
     .map((problem) => problem.title)
     .join(", ");
@@ -2659,6 +3025,7 @@ function createMockAiOutput(
         ].join("\n"),
         projectId: project.id,
         projectName: project.name,
+        riskLevel: actionDefinition.riskLevel,
         memoryType: "Fact",
         taskTitle: `Review ${project.name} summary`,
         taskDescription: `Review the generated project summary and decide whether it should become durable project context.`,
@@ -2677,6 +3044,7 @@ function createMockAiOutput(
         ].join("\n"),
         projectId: project.id,
         projectName: project.name,
+        riskLevel: actionDefinition.riskLevel,
         memoryType: "Idea",
         taskTitle: `Review generated next actions for ${project.name}`,
         taskDescription: `Review and refine the AI-generated next actions for ${project.name}.`,
@@ -2695,6 +3063,7 @@ function createMockAiOutput(
         ].join("\n"),
         projectId: project.id,
         projectName: project.name,
+        riskLevel: actionDefinition.riskLevel,
         memoryType: "Risk",
         taskTitle: `Review risks for ${project.name}`,
         taskDescription: `Validate the extracted risks and decide whether any should become formal project risks.`,
@@ -2714,6 +3083,7 @@ function createMockAiOutput(
         ].join("\n"),
         projectId: project.id,
         projectName: project.name,
+        riskLevel: actionDefinition.riskLevel,
         memoryType: "Idea",
         taskTitle: `Use Codex prompt for ${project.name}`,
         taskDescription: `Run or refine the generated Codex prompt for the next focused implementation pass.`,
